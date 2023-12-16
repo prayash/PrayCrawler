@@ -11,6 +11,7 @@
 		C46E2EDA2B2D874600043E81 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C46E2ED92B2D874600043E81 /* ContentView.swift */; };
 		C46E2EDC2B2D874700043E81 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C46E2EDB2B2D874700043E81 /* Assets.xcassets */; };
 		C46E2EDF2B2D874700043E81 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C46E2EDE2B2D874700043E81 /* Preview Assets.xcassets */; };
+		C46E2EE72B2D87BF00043E81 /* Crawler.swift in Sources */ = {isa = PBXBuildFile; fileRef = C46E2EE62B2D87BF00043E81 /* Crawler.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -20,6 +21,7 @@
 		C46E2EDB2B2D874700043E81 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C46E2EDE2B2D874700043E81 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		C46E2EE02B2D874700043E81 /* PrayCrawler.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PrayCrawler.entitlements; sourceTree = "<group>"; };
+		C46E2EE62B2D87BF00043E81 /* Crawler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Crawler.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -53,6 +55,7 @@
 			isa = PBXGroup;
 			children = (
 				C46E2ED72B2D874600043E81 /* PrayCrawlerApp.swift */,
+				C46E2EE62B2D87BF00043E81 /* Crawler.swift */,
 				C46E2ED92B2D874600043E81 /* ContentView.swift */,
 				C46E2EDB2B2D874700043E81 /* Assets.xcassets */,
 				C46E2EE02B2D874700043E81 /* PrayCrawler.entitlements */,
@@ -139,6 +142,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C46E2EE72B2D87BF00043E81 /* Crawler.swift in Sources */,
 				C46E2EDA2B2D874600043E81 /* ContentView.swift in Sources */,
 				C46E2ED82B2D874600043E81 /* PrayCrawlerApp.swift in Sources */,
 			);
