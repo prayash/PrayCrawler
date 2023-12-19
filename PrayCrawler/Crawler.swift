@@ -7,43 +7,71 @@
 
 import Foundation
 
+/// Actor-based queue for tracking crawler work.
 actor Queue<T: Hashable> {
     private var storage: Set<T> = []
     private var inProgress: Set<T> = []
+    private var pendingDequeues: [() -> Void] = []
+    private var seen: Set<T> = []
     
-    func dequeue() -> T? {
-        guard let result = storage.popFirst() else { return nil }
+    func dequeue() async -> T? {
+        guard !Task.isCancelled else { return nil }
         
-        inProgress.insert(result)
-        return result
+        if let result = storage.popFirst() {
+            inProgress.insert(result)
+            return result
+        } else {
+            if isDone {
+                return nil
+            }
+            
+            // print("[prt] : No items – suspending...")
+            /// A neat use case for continuations is for manual suspensions
+            /// and not just retrofitting traditional completion-handler
+            /// based APIs for the async world.
+            await withCheckedContinuation { continuation in
+                pendingDequeues.append(continuation.resume)
+            }
+            
+            return await dequeue()
+        }
     }
     
     func finish(_ item: T) {
         inProgress.remove(item)
+        if isDone {
+            flushPendingDequeues()
+        }
     }
     
     func add(items: any Sequence<T>) {
-        storage.formUnion(items)
+        let trulyNew = items.filter { !seen.contains($0) }
+        seen.formUnion(trulyNew)
+        storage.formUnion(trulyNew)
+        
+        flushPendingDequeues()
     }
     
-    var isDone: Bool {
+    fileprivate func flushPendingDequeues() {
+        for continuation in pendingDequeues {
+            continuation()
+        }
+        
+        pendingDequeues.removeAll()
+    }
+    
+    private var isDone: Bool {
         storage.isEmpty && inProgress.isEmpty
     }
 }
 
-@MainActor
-final class Crawler: ObservableObject {
-    @Published var state: [URL: Page] = [:]
-    
-    func add(_ page: Page) {
-        state[page.url] = page
-    }
-    
-    func seenURLs() -> Set<URL> {
-        Set(state.keys)
-    }
-    
-    func crawl(url: URL, numberOfWorkers: Int = 4) async throws {
+typealias CrawlerStream = AsyncThrowingStream<Page, Error>
+
+fileprivate func crawlHelper(
+    url: URL,
+    numberOfWorkers: Int = 4,
+    continuation: CrawlerStream.Continuation
+) async throws {
         let basePrefix = url.absoluteString
         let queue = Queue<URL>.init()
         await queue.add(items: [url])
@@ -54,32 +82,62 @@ final class Crawler: ObservableObject {
         /// Task group will keep running as long as child tasks are running.
         /// We need to react to all child tasks, otherwise the top-level task will stay suspended!
         /// This is NOT parallelism in CPU workload, but rather I/O tasks.
-        await withThrowingTaskGroup(of: Void.self) { group in
+        try await withThrowingTaskGroup(of: Void.self) { group in
             for i in 0..<numberOfWorkers {
                 group.addTask {
                     var numberOfJobs = 0
                     
-                    while await !queue.isDone { // This is TOO busy!
+                    while let job = await queue.dequeue() {
                         defer { numberOfJobs += 1 }
-                        guard let job = await queue.dequeue() else {
-                            try await Task.sleep(nanoseconds: 1000) // ew!
-                            continue
-                        }
                         
                         let page = try await URLSession.shared.page(from: job)
-                        let seen = await self.seenURLs()
+                        try await Task.sleep(nanoseconds: NSEC_PER_SEC * 1) // REMOVE!!
                         let newURLs = page.outgoingLinks.filter { url in
-                            url.absoluteString.hasPrefix(basePrefix) && !seen.contains(url)
+                            url.absoluteString.hasPrefix(basePrefix)
                         }
                         
                         await queue.add(items: newURLs)
-                        await self.add(page)
+                        continuation.yield(page)
                         await queue.finish(page.url)
                     }
                     
-                    print("Worker \(i) did \(numberOfJobs) jobs")
+                    print("[prt] : Worker \(i) did \(numberOfJobs) jobs")
                 }
             }
+            
+            do {
+                /// Iterate over the results of the child tasks (which is either Void or throws)
+                for try await _ in group {}
+            } catch {
+                print("[prt] : Worker error \(error)")
+                await queue.flushPendingDequeues()
+                throw error
+            }
+        }
+        
+        print("[prt] : All crawler child tasks have been completed.")
+}
+
+func crawl(url: URL, numberOfWorkers: Int = 4) -> CrawlerStream {
+    return CrawlerStream { continuation in
+        let producerTask = Task(priority: .userInitiated) {
+            do {
+                try await crawlHelper(
+                    url: url,
+                    numberOfWorkers: numberOfWorkers,
+                    continuation: continuation
+                )
+                
+                continuation.finish(throwing: nil)
+            } catch {
+                print("[prt] : TaskGroup finished with an error: \(error)")
+                continuation.finish(throwing: error)
+            }
+        }
+        
+        continuation.onTermination = { @Sendable _ in
+            print("[prt] : The producer task was terminated as a result of consumer task cancellation.")
+            producerTask.cancel()
         }
     }
 }
